@@ -20,24 +20,44 @@ function numberLines(){
         var nStyle = makeParaStyle(doc, "LineNumbers");
         if (!nStyle || !nStyle.isValid) throw new Error("Absatzformat konnte nicht erstellt werden.");
 
-        // Font ermitteln (mit Fallback)
+        // Font und Größe ermitteln (mit Fallback)
         var baseFont = null;
+        var baseFontSize = 9; // Fallback
+        var baseFontStyle = null;
+
         try {
             if (s.lines && s.lines.length > 0 && s.lines[0].isValid) {
                 baseFont = s.lines[0].appliedFont;
+                baseFontSize = s.lines[0].pointSize || 9;
+                baseFontStyle = s.lines[0].fontStyle;
             } else if (s.appliedFont) {
                 baseFont = s.appliedFont;
+                baseFontSize = s.pointSize || 9;
+                baseFontStyle = s.fontStyle;
             }
         } catch(_) {}
         if (!baseFont) baseFont = app.fonts.length ? app.fonts[0] : null;
 
-        // Stil konfigurieren (ohne appliedFont, wenn keiner sicher ist)
+        // Versuche Light-Schriftschnitt zu finden
+        var lightFontStyle = findLightFontStyle(baseFont, baseFontStyle);
+
+        // Stil konfigurieren mit der gleichen Schriftgröße wie der Haupttext
         nStyle.properties = {
-            pointSize: 9,
-            justification: Justification.RIGHT_ALIGN
+            pointSize: baseFontSize,
+            justification: Justification.RIGHT_ALIGN,
+            fillColor: doc.swatches.item("Black"),
+            fillTint: 50  // 50% Deckkraft für subtile Erscheinung
         };
+
         if (baseFont && baseFont.isValid) {
-            try { nStyle.appliedFont = baseFont; } catch(_) {}
+            try {
+                nStyle.appliedFont = baseFont;
+                // Wenn Light-Schriftschnitt gefunden, verwenden
+                if (lightFontStyle) {
+                    nStyle.fontStyle = lightFontStyle;
+                    nStyle.fillTint = 100;  // Bei Light-Schnitt volle Deckkraft
+                }
+            } catch(_) {}
         }
 
         // Alte LineNo-Rahmen entfernen
@@ -71,10 +91,14 @@ function numberLines(){
             targetContainer = doc.pages[0];
         }
 
-        // Nummern setzen
+        // Nummern setzen (nur jede 5. Zeile)
         for (var i = 0; i < ln.length; i++){
             var line = ln[i];
             if (!line || !line.isValid) continue;
+
+            // Nur jede 5. Zeile nummerieren (5, 10, 15, ...)
+            var lineNumber = i + 1;
+            if (lineNumber % 5 !== 0) continue;
 
             var x2 = line.horizontalOffset - 10; // 10 pt links der Zeile
             var y2 = line.baseline;
@@ -86,7 +110,7 @@ function numberLines(){
                 nf = targetContainer.textFrames.add({
                     label: nl,
                     geometricBounds: gb,
-                    contents: (i+1).toString(),
+                    contents: lineNumber.toString(),
                     textFramePreferences: { verticalJustification: VerticalJustification.BOTTOM_ALIGN }
                 });
             } catch(e1) {
@@ -95,7 +119,7 @@ function numberLines(){
                     nf = doc.pages[0].textFrames.add({
                         label: nl,
                         geometricBounds: gb,
-                        contents: (i+1).toString(),
+                        contents: lineNumber.toString(),
                         textFramePreferences: { verticalJustification: VerticalJustification.BOTTOM_ALIGN }
                     });
                 } catch(e2) {
@@ -121,4 +145,40 @@ function makeParaStyle(d, n){
     var it = d.paragraphStyles.itemByName(n);
     if (it.isValid) return it;
     return d.paragraphStyles.add({ name: n });
+}
+
+// Suche Light-Schriftschnitt in der Font-Familie
+function findLightFontStyle(font, currentStyle){
+    if (!font || !font.isValid) return null;
+
+    try {
+        var styles = font.fontStyleName;
+        var availableStyles = [];
+
+        // Sammle verfügbare Schriftschnitte
+        var fontFamily = font.fontFamily;
+        var allFonts = app.fonts.everyItem().getElements();
+
+        for (var i = 0; i < allFonts.length; i++) {
+            if (allFonts[i].fontFamily === fontFamily) {
+                var styleName = allFonts[i].fontStyleName;
+                availableStyles.push(styleName);
+            }
+        }
+
+        // Suche nach Light-Varianten (typische Bezeichnungen)
+        var lightPatterns = ["Light", "Thin", "Hairline", "UltraLight", "ExtraLight"];
+
+        for (var j = 0; j < lightPatterns.length; j++) {
+            for (var k = 0; k < availableStyles.length; k++) {
+                var style = availableStyles[k];
+                // Case-insensitive Suche
+                if (style.toLowerCase().indexOf(lightPatterns[j].toLowerCase()) >= 0) {
+                    return style;
+                }
+            }
+        }
+    } catch(_) {}
+
+    return null;  // Kein Light-Schnitt gefunden
 }
