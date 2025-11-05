@@ -73,24 +73,6 @@ function numberLines(){
         var ln = (s.lines && s.lines.length) ? s.lines.everyItem().getElements() : [];
         if (!ln || ln.length === 0) throw new Error("Keine Zeilen in der Auswahl gefunden.");
 
-        // Primären Textframe & Zielcontainer ermitteln
-        var container = (s.parentTextFrames && s.parentTextFrames.length) ? s.parentTextFrames[0] : null;
-        if (!container || !container.isValid) throw new Error("Kein gültiger übergeordneter Textframe.");
-
-        var targetContainer = container.parentPage;
-        if (!targetContainer || !targetContainer.isValid) {
-            // Spread/MasterSpread als Alternative
-            var parentObj = container.parent;
-            if (parentObj && parentObj.isValid && (""+parentObj.constructor.name).match(/Spread|MasterSpread|Page/)) {
-                targetContainer = parentObj;
-            }
-        }
-        // Letzter Fallback: erste Seite
-        if (!targetContainer || !targetContainer.isValid) {
-            if (doc.pages.length === 0) throw new Error("Dokument hat keine Seiten.");
-            targetContainer = doc.pages[0];
-        }
-
         // Nummern setzen (nur jede 5. Zeile)
         for (var i = 0; i < ln.length; i++){
             var line = ln[i];
@@ -100,32 +82,56 @@ function numberLines(){
             var lineNumber = i + 1;
             if (lineNumber % 5 !== 0) continue;
 
+            // Für jede Zeile die spezifische Seite ermitteln
+            var lineParentTextFrame = null;
+            try {
+                if (line.parentTextFrames && line.parentTextFrames.length > 0) {
+                    lineParentTextFrame = line.parentTextFrames[0];
+                }
+            } catch(_) { continue; }
+
+            if (!lineParentTextFrame || !lineParentTextFrame.isValid) continue;
+
+            // Seite dieser spezifischen Zeile ermitteln
+            var linePage = null;
+            try {
+                linePage = lineParentTextFrame.parentPage;
+            } catch(_) {}
+
+            // Fallback: Spread versuchen
+            if (!linePage || !linePage.isValid) {
+                try {
+                    var parentObj = lineParentTextFrame.parent;
+                    if (parentObj && parentObj.isValid) {
+                        var parentType = "" + parentObj.constructor.name;
+                        if (parentType.match(/Spread|MasterSpread/)) {
+                            linePage = parentObj;
+                        } else if (parentType === "Page") {
+                            linePage = parentObj;
+                        }
+                    }
+                } catch(_) {}
+            }
+
+            if (!linePage || !linePage.isValid) continue;
+
+            // Koordinaten für diese Zeile in Pasteboard-Koordinaten
             var x2 = line.horizontalOffset - 10; // 10 pt links der Zeile
             var y2 = line.baseline;
             var gb = [y2 - 20, x2 - 20, y2, x2]; // [top,left,bottom,right]
 
             var nf = null;
-            // Primär versuchen: im ermittelten Container
+            // Versuche Textrahmen auf der korrekten Seite zu erstellen
             try {
-                nf = targetContainer.textFrames.add({
+                nf = linePage.textFrames.add({
                     label: nl,
                     geometricBounds: gb,
                     contents: lineNumber.toString(),
                     textFramePreferences: { verticalJustification: VerticalJustification.BOTTOM_ALIGN }
                 });
             } catch(e1) {
-                // Fallback: auf Seite 1 (falls Container z. B. kein Page-/Spread-Objekt war)
-                try {
-                    nf = doc.pages[0].textFrames.add({
-                        label: nl,
-                        geometricBounds: gb,
-                        contents: lineNumber.toString(),
-                        textFramePreferences: { verticalJustification: VerticalJustification.BOTTOM_ALIGN }
-                    });
-                } catch(e2) {
-                    // Diese Zeile überspringen, wenn sogar der Fallback scheitert
-                    continue;
-                }
+                // Bei Fehler diese Zeile überspringen
+                continue;
             }
 
             if (nf && nf.isValid) {

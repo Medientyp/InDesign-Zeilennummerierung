@@ -76,6 +76,12 @@ Das Skript entfernt automatisch alle vorherigen Zeilennummern (erkannt am Label 
 **Mehrfachausführung:**
 Sie können das Skript beliebig oft ausführen. Es überschreibt immer die vorherigen Zeilennummern.
 
+**Mehrseitige Dokumente:**
+Das Skript funktioniert automatisch über mehrere Seiten hinweg. Jede Zeilennummer wird auf der korrekten Seite platziert, auch bei verketteten Textrahmen.
+
+**Mehrspaltige Textrahmen:**
+Bei mehrspaltigen Textrahmen werden die Zeilennummern automatisch links neben der jeweiligen Spalte positioniert.
+
 ## Technische Details
 
 ### Absatzformat "LineNumbers"
@@ -92,9 +98,11 @@ Das Skript erstellt automatisch ein Absatzformat mit folgenden Eigenschaften:
 
 ### Positionierung
 
-- **Horizontal:** 10 Punkte links vom Textrand
+- **Horizontal:** 10 Punkte links vom Textrand (funktioniert automatisch für alle Spalten)
 - **Vertikal:** Baseline-Ausrichtung mit der jeweiligen Textzeile
-- **Container:** Auf der gleichen Seite/Spread wie der Haupttext
+- **Container:** Dynamisch - jede Zeile wird auf ihrer tatsächlichen Seite nummeriert
+- **Mehrseitig:** Verkettete Textrahmen über mehrere Seiten werden korrekt behandelt
+- **Mehrspaltig:** Jede Spalte erhält ihre Nummern an der korrekten Position
 
 ### Light-Schriftschnitt-Erkennung
 
